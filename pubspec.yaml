@@ -1,0 +1,3 @@
+flutter:
+  assets:
+    - assets/word_list.json 
