@@ -1,4 +1,6 @@
 import 'dart:math';
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 
 class WordService {
   final Set<String> dictionaryWords = {};
@@ -7,42 +9,88 @@ class WordService {
 
   List<String> get vowels => _vowels;
 
-  Future<void> initializeWords(List<String> words) {
-    dictionaryWords.addAll(words.map((w) => w.toUpperCase()));
-    return Future.value();
+  Future<void> initializeWords() async {
+    try {
+      // Load dictionary from json
+      String jsonString = await rootBundle.loadString('assets/word_list.json');
+      Map<String, dynamic> jsonData = json.decode(jsonString);
+
+      // Get the keys (words) from the JSON object
+      dictionaryWords.addAll(jsonData.keys.map((w) => w.toUpperCase()));
+      print("Dictionary loaded with ${dictionaryWords.length} words");
+    } catch (e) {
+      print("Error loading dictionary: $e");
+      rethrow;
+    }
   }
 
   List<String> generateLetters() {
-    List<String> letters = [_vowels[Random().nextInt(_vowels.length)]];
-    List<String> alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
-      ..removeWhere((l) => letters.contains(l));
+    List<String> vowels = ['A', 'E', 'I', 'O', 'U'];
+    List<String> consonants = [
+      'B',
+      'C',
+      'D',
+      'F',
+      'G',
+      'H',
+      'J',
+      'K',
+      'L',
+      'M',
+      'N',
+      'P',
+      'Q',
+      'R',
+      'S',
+      'T',
+      'V',
+      'W',
+      'X',
+      'Y',
+      'Z'
+    ];
 
-    // Random number between 5 and 14 (so total will be 6-15 letters)
-    int additionalLetters = Random().nextInt(10) + 5;
-    for (int i = 0; i < additionalLetters && alphabet.isNotEmpty; i++) {
-      int index = Random().nextInt(alphabet.length);
-      letters.add(alphabet[index]);
-      alphabet.removeAt(index);
-    }
-    return letters;
+    // Shuffle separately
+    vowels.shuffle();
+    consonants.shuffle();
+
+    // Take 4-5 vowels and fill rest with consonants
+    int numVowels = Random().nextInt(2) + 4; // 4-5 vowels
+    List<String> selectedLetters = [];
+
+    // Add vowels first
+    selectedLetters.addAll(vowels.take(numVowels));
+
+    // Fill remaining spots with consonants
+    selectedLetters.addAll(consonants.take(15 - numVowels));
+
+    return selectedLetters;
   }
 
   bool isValidWord(String word, List<String> currentLetters) {
     word = word.toUpperCase();
-    if (!dictionaryWords.contains(word)) return false;
-    if (completedWords.contains(word)) return false;
+    print("Checking word: $word");
+    print("Available letters: $currentLetters");
 
-    Map<String, int> letterCount = {};
-    for (String letter in currentLetters) {
-      letterCount[letter] = (letterCount[letter] ?? 0) + 1;
+    // First check if it's a valid dictionary word and hasn't been found before
+    if (!dictionaryWords.contains(word)) {
+      print("Word not in dictionary");
+      return false;
+    }
+    if (completedWords.contains(word)) {
+      print("Word already found");
+      return false;
     }
 
+    // Check if each letter in the word is available
     for (String letter in word.split('')) {
-      if (!letterCount.containsKey(letter) || letterCount[letter]! < 1) {
+      if (!currentLetters.contains(letter)) {
+        print("Letter $letter not available");
         return false;
       }
-      letterCount[letter] = letterCount[letter]! - 1;
     }
+
+    print("Word is valid!");
     return true;
   }
 
