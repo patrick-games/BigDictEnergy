@@ -67,31 +67,23 @@ class WordService {
     return selectedLetters;
   }
 
-  bool isValidWord(String word, List<String> currentLetters) {
-    word = word.toUpperCase();
-    print("Checking word: $word");
-    print("Available letters: $currentLetters");
-
-    // First check if it's a valid dictionary word and hasn't been found before
-    if (!dictionaryWords.contains(word)) {
-      print("Word not in dictionary");
-      return false;
-    }
-    if (completedWords.contains(word)) {
-      print("Word already found");
-      return false;
-    }
-
-    // Check if each letter in the word is available
-    for (String letter in word.split('')) {
-      if (!currentLetters.contains(letter)) {
-        print("Letter $letter not available");
-        return false;
+  bool canBeFormedFromLetters(String word, List<String> letters) {
+    // Check if each letter in the word is in our available letters
+    // Letters can be used multiple times
+    for (var letter in word.split('')) {
+      if (!letters.contains(letter)) {
+        return false; // Letter not available at all
       }
     }
-
-    print("Word is valid!");
     return true;
+  }
+
+  bool isValidDictionaryWord(String word) {
+    return dictionaryWords.contains(word.toUpperCase());
+  }
+
+  bool isValidWord(String word, List<String> letters) {
+    return isValidDictionaryWord(word) && canBeFormedFromLetters(word, letters);
   }
 
   int calculatePoints(String word) {

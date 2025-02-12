@@ -93,19 +93,22 @@ class GameController extends ChangeNotifier {
 
   void _handleGameStateUpdate(DocumentSnapshot snapshot) {
     Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
-    currentLetters = List<String>.from(data['currentLetters']);
+
+    // Only update letters if time is near zero or we don't have any
+    if (_timeRemaining <= 1 || currentLetters.isEmpty) {
+      currentLetters = List<String>.from(data['currentLetters']);
+    }
 
     // Always update these values from Firebase
     wordsFoundThisMinute = data['wordsFoundThisMinute'] ?? 0;
-    totalWordsFound = data['totalWordsFound'] ?? 0;
+    // Don't update totalWordsFound here as it comes from completedWords collection
 
-    // Only update time if it's from a newer state
-    int newTime = data['timeRemaining'];
+    // Only update time if it's less than our current time
+    int newTime = data['timeRemaining'] ?? 0;
     if (newTime < _timeRemaining) {
       _timeRemaining = newTime;
     }
 
-    // Use stored current round words
     _updateGameState();
   }
 
@@ -116,13 +119,19 @@ class GameController extends ChangeNotifier {
       DateTime roundStartTime =
           now.subtract(Duration(seconds: 60 - _timeRemaining));
 
+      // Create a set to prevent duplicates
+      Set<String> processedWords = {};
+
+      // Track current round words
       for (var doc in snapshot.docs) {
         String word = doc.get('word');
         DateTime timestamp = doc.get('timestamp').toDate();
 
-        // Only add words from current round
-        if (timestamp.isAfter(roundStartTime)) {
+        // Only add words from current round and not already processed
+        if (timestamp.isAfter(roundStartTime) &&
+            !processedWords.contains(word)) {
           currentWords.add(WordEntry(word.toUpperCase(), timestamp));
+          processedWords.add(word);
           print("Added word to current round: $word");
         }
       }
@@ -130,8 +139,9 @@ class GameController extends ChangeNotifier {
       // Update words found this minute count
       wordsFoundThisMinute = currentWords.length;
 
-      // Update total words found (all time)
-      totalWordsFound = snapshot.docs.length;
+      // Update total words found (all time) - this is the total in Firestore
+      totalWordsFound =
+          snapshot.size; // Use size instead of current round length
 
       // Sort by most recent first
       currentWords.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -196,13 +206,42 @@ class GameController extends ChangeNotifier {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       _timeRemaining--;
+
       if (_timeRemaining <= 0) {
-        wordsFoundThisMinute = 0;
-        await _generateNewLetters();
-        _timeRemaining = 60;
+        // Cancel current timer immediately
+        timer.cancel();
+
+        // Small delay for visual feedback
+        await Future.delayed(const Duration(seconds: 1));
+
+        try {
+          // Generate new letters
+          List<String> newLetters = wordService.generateLetters();
+
+          // Update Firebase atomically with new state
+          await firebaseService.startNewRound(
+            letters: newLetters,
+            duration: 60, // Reset to 60 seconds
+          );
+
+          // Update local state
+          currentLetters = newLetters;
+          _timeRemaining = 60;
+          wordsFoundThisMinute = 0;
+          _currentRoundWords = [];
+
+          // Start new timer
+          _startTimer();
+
+          // Update UI
+          _updateGameState();
+        } catch (e) {
+          print("Error starting new round: $e");
+        }
+      } else {
+        await firebaseService.updateGameState(_timeRemaining, currentLetters);
+        _updateGameState();
       }
-      await firebaseService.updateGameState(_timeRemaining, currentLetters);
-      _updateGameState();
     });
   }
 
@@ -243,17 +282,31 @@ class GameController extends ChangeNotifier {
       return Future.error('Word was found in a previous round');
     }
 
-    // Finally check if it's valid with current letters
-    if (wordService.isValidWord(upperWord, currentLetters)) {
-      try {
-        await firebaseService.submitWord(upperWord);
+    // Check if it's a valid dictionary word first
+    if (!wordService.isValidDictionaryWord(upperWord)) {
+      return Future.error('Not a valid word');
+    }
 
-        // Add to current round words
+    // Then check if it can be made with current letters
+    if (wordService.canBeFormedFromLetters(upperWord, currentLetters)) {
+      try {
+        // Optimistically add to local state for immediate feedback
         _currentRoundWords.add(upperWord);
         _sessionWordsFound++;
         wordsFoundThisMinute = _currentRoundWords.length;
-
         _updateGameState();
+
+        // Then update Firebase in the background
+        firebaseService.submitWord(upperWord).catchError((e) {
+          // If Firebase update fails, rollback local state
+          _currentRoundWords.remove(upperWord);
+          _sessionWordsFound--;
+          wordsFoundThisMinute = _currentRoundWords.length;
+          _updateGameState();
+          print("Error submitting word: $e");
+          return Future.error('Failed to submit word');
+        });
+
         print("Word submitted successfully: $word");
       } catch (e) {
         print("Error submitting word: $e");

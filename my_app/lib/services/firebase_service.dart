@@ -130,28 +130,26 @@ class FirebaseService {
   }
 
   Future<void> submitWord(String word) async {
-    try {
-      final batch = _firestore.batch();
+    final timestamp = FieldValue.serverTimestamp();
 
-      // Add to completed words collection
-      batch.set(_wordsRef.doc(), {
-        'word': word.toUpperCase(),
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+    // Use a transaction to ensure word is counted even at last moment
+    await _firestore.runTransaction((transaction) async {
+      final gameDoc = await transaction.get(_gameRef);
+      final gameData = gameDoc.data() as Map<String, dynamic>;
 
-      // Update counters in game state
-      batch.update(_gameRef, {
-        'wordsFoundThisMinute': FieldValue.increment(1),
-        'totalWordsFound': FieldValue.increment(1),
-      });
+      // Only accept word if time remaining
+      if (gameData['timeRemaining'] > 0) {
+        await transaction.update(_gameRef, {
+          'wordsFoundThisMinute': FieldValue.increment(1),
+          'totalWordsFound': FieldValue.increment(1),
+        });
 
-      // Commit both operations atomically
-      await batch.commit();
-      print("Word added to Firestore: $word");
-    } catch (e) {
-      print("Error adding word: $e");
-      rethrow;
-    }
+        await _wordsRef.add({
+          'word': word,
+          'timestamp': timestamp,
+        });
+      }
+    });
   }
 
   Future<void> resetGame() async {
@@ -194,5 +192,23 @@ class FirebaseService {
         await _wordsRef.where('word', isEqualTo: word).limit(1).get();
 
     return snapshot.docs.isNotEmpty;
+  }
+
+  Future<void> startNewRound({
+    required List<String> letters,
+    required int duration,
+  }) async {
+    // Use a transaction to ensure atomic update
+    await _firestore.runTransaction((transaction) async {
+      final gameDoc = await transaction.get(_gameRef);
+
+      // Update game state atomically
+      transaction.set(_gameRef, {
+        'currentLetters': letters,
+        'timeRemaining': duration,
+        'roundStartTime': FieldValue.serverTimestamp(),
+        'wordsFoundThisMinute': 0,
+      });
+    });
   }
 }

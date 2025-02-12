@@ -6,6 +6,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'widgets/game_display.dart';
 import 'controllers/game_controller.dart';
 import 'services/word_service.dart';
+import 'package:my_app/screens/how_to_play_screen.dart';
+import 'package:my_app/screens/dictionary_screen.dart';
+import 'package:my_app/screens/about_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,6 +41,11 @@ class MyApp extends StatelessWidget {
         onSubmitWord: gameController.submitWord,
         onResetGame: gameController.resetGame,
       ),
+      routes: {
+        '/how-to-play': (context) => const HowToPlayScreen(),
+        '/dictionary': (context) => const DictionaryScreen(),
+        '/about': (context) => const AboutScreen(),
+      },
     );
   }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:my_app/models/game_state.dart';
+import 'package:my_app/widgets/tappable_word_input.dart';
+import 'package:my_app/widgets/app_drawer.dart';
 
 class GameDisplay extends StatefulWidget {
   final Stream<GameState> gameState;
@@ -20,6 +22,8 @@ class GameDisplay extends StatefulWidget {
 class _GameDisplayState extends State<GameDisplay> {
   final TextEditingController _wordController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  final GlobalKey<TappableWordInputState> _tappableInputKey =
+      GlobalKey<TappableWordInputState>();
 
   @override
   void initState() {
@@ -69,7 +73,7 @@ class _GameDisplayState extends State<GameDisplay> {
               title: const Text(
                 'Big Dict Energy',
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: 32,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -86,12 +90,13 @@ class _GameDisplayState extends State<GameDisplay> {
             title: const Text(
               'Big Dict Energy',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 32,
                 fontWeight: FontWeight.bold,
               ),
             ),
             centerTitle: true,
           ),
+          drawer: const AppDrawer(),
           body: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -114,60 +119,106 @@ class _GameDisplayState extends State<GameDisplay> {
                 const SizedBox(height: 20),
 
                 // Letters display with hexagonal shape
-                Wrap(
-                  spacing: 8.0,
-                  runSpacing: 8.0,
-                  children: state.currentLetters.map((letter) {
-                    bool isVowel = 'AEIOU'.contains(letter);
-                    return Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: isVowel ? Colors.amber : Colors.lightBlue,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          letter,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Wrap(
+                      spacing: 8.0,
+                      runSpacing: 8.0,
+                      children: state.currentLetters.map((letter) {
+                        bool isVowel = 'AEIOU'.contains(letter);
+                        return GestureDetector(
+                          onTap: () {
+                            if (constraints.maxWidth < 600) {
+                              _tappableInputKey.currentState?.addLetter(letter);
+                            }
+                          },
+                          child: Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: isVowel ? Colors.amber : Colors.lightBlue,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                letter,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      }).toList(),
                     );
-                  }).toList(),
+                  },
                 ),
                 const SizedBox(height: 20),
 
                 // Word input
-                TextField(
-                  controller: _wordController,
-                  focusNode: _focusNode,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Enter word',
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: _handleWordSubmit,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Use tappable input for screens narrower than 600px
+                    if (constraints.maxWidth < 600) {
+                      return Column(
+                        children: [
+                          const SizedBox(height: 20),
+                          TappableWordInput(
+                            letters: state.currentLetters,
+                            onSubmitWord: _handleWordSubmit,
+                            key: _tappableInputKey,
+                          ),
+                        ],
+                      );
+                    } else {
+                      // Original text field for wider screens
+                      return Column(
+                        children: [
+                          const SizedBox(height: 20),
+                          TextField(
+                            controller: _wordController,
+                            focusNode: _focusNode,
+                            autofocus: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Enter word',
+                              border: OutlineInputBorder(),
+                            ),
+                            onSubmitted: _handleWordSubmit,
+                          ),
+                        ],
+                      );
+                    }
+                  },
                 ),
                 const SizedBox(height: 20),
 
                 // Words found counters
-                Text(
-                  'Words found this round: ${state.wordsFoundThisMinute}',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  'Total words you found this session: ${state.sessionWordsFound}',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w500,
-                  ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Use smaller font for mobile
+                    double fontSize = constraints.maxWidth < 600 ? 18 : 24;
+
+                    return Column(
+                      children: [
+                        Text(
+                          'Found this round: ${state.wordsFoundThisMinute}',
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          'Total words found: ${state.sessionWordsFound}',
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 20),
 
