@@ -188,4 +188,11 @@ class FirebaseService {
     }
     return null;
   }
+
+  Future<bool> wasWordFoundBefore(String word) async {
+    final snapshot =
+        await _wordsRef.where('word', isEqualTo: word).limit(1).get();
+
+    return snapshot.docs.isNotEmpty;
+  }
 }

@@ -227,12 +227,29 @@ class GameController extends ChangeNotifier {
   }
 
   Future<void> submitWord(String word) async {
-    if (wordService.isValidWord(word, currentLetters)) {
+    String upperWord = word.toUpperCase();
+
+    // First check if word was already found this round
+    if (_currentRoundWords.contains(upperWord)) {
+      print("Word already found this round: $word");
+      return Future.error('Word already found this round');
+    }
+
+    // Then check if word was found in any previous round
+    bool wasFoundPreviously =
+        await firebaseService.wasWordFoundBefore(upperWord);
+    if (wasFoundPreviously) {
+      print("Word was found in a previous round: $word");
+      return Future.error('Word was found in a previous round');
+    }
+
+    // Finally check if it's valid with current letters
+    if (wordService.isValidWord(upperWord, currentLetters)) {
       try {
-        await firebaseService.submitWord(word);
+        await firebaseService.submitWord(upperWord);
 
         // Add to current round words
-        _currentRoundWords.add(word.toUpperCase());
+        _currentRoundWords.add(upperWord);
         _sessionWordsFound++;
         wordsFoundThisMinute = _currentRoundWords.length;
 
@@ -243,7 +260,7 @@ class GameController extends ChangeNotifier {
         return Future.error('Failed to submit word');
       }
     } else {
-      return Future.error('Invalid word');
+      return Future.error('Word cannot be made with current letters');
     }
   }
 
