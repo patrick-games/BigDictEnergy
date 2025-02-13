@@ -4,6 +4,7 @@ import '../services/firebase_service.dart';
 import '../models/game_state.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:math' as math;
 
 class GameController extends ChangeNotifier {
   final WordService wordService;
@@ -91,22 +92,23 @@ class GameController extends ChangeNotifier {
     }
   }
 
-  void _handleGameStateUpdate(DocumentSnapshot snapshot) {
+  void _handleGameStateUpdate(DocumentSnapshot snapshot) async {
     Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
 
-    // Only update letters if time is near zero or we don't have any
-    if (_timeRemaining <= 1 || currentLetters.isEmpty) {
+    // Get server-based time
+    Timestamp roundStartTime = data['roundStartTime'];
+    int elapsedSeconds =
+        DateTime.now().difference(roundStartTime.toDate()).inSeconds;
+    _timeRemaining = math.max(0, 60 - elapsedSeconds);
+
+    // Update letters if round is over
+    if (_timeRemaining <= 0) {
       currentLetters = List<String>.from(data['currentLetters']);
-    }
-
-    // Always update these values from Firebase
-    wordsFoundThisMinute = data['wordsFoundThisMinute'] ?? 0;
-    // Don't update totalWordsFound here as it comes from completedWords collection
-
-    // Only update time if it's less than our current time
-    int newTime = data['timeRemaining'] ?? 0;
-    if (newTime < _timeRemaining) {
-      _timeRemaining = newTime;
+      wordsFoundThisMinute = 0;
+      _currentRoundWords.clear();
+    } else {
+      currentLetters = List<String>.from(data['currentLetters']);
+      wordsFoundThisMinute = data['wordsFoundThisMinute'] ?? 0;
     }
 
     _updateGameState();
@@ -205,42 +207,42 @@ class GameController extends ChangeNotifier {
   void _startTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      _timeRemaining--;
+      try {
+        // Get time from server
+        int serverTimeRemaining =
+            await firebaseService.calculateTimeRemaining();
 
-      if (_timeRemaining <= 0) {
-        // Cancel current timer immediately
-        timer.cancel();
+        if (serverTimeRemaining <= 0) {
+          // Cancel current timer immediately
+          timer.cancel();
 
-        // Small delay for visual feedback
-        await Future.delayed(const Duration(seconds: 1));
+          try {
+            // Generate new letters
+            List<String> newLetters = wordService.generateLetters();
 
-        try {
-          // Generate new letters
-          List<String> newLetters = wordService.generateLetters();
+            // Update Firebase atomically with new state
+            await firebaseService.startNewRound(
+              letters: newLetters,
+              duration: 60,
+            );
 
-          // Update Firebase atomically with new state
-          await firebaseService.startNewRound(
-            letters: newLetters,
-            duration: 60, // Reset to 60 seconds
-          );
+            // Update local state
+            currentLetters = newLetters;
+            _timeRemaining = 60;
+            wordsFoundThisMinute = 0;
+            _currentRoundWords.clear();
 
-          // Update local state
-          currentLetters = newLetters;
-          _timeRemaining = 60;
-          wordsFoundThisMinute = 0;
-          _currentRoundWords = [];
-
-          // Start new timer
-          _startTimer();
-
-          // Update UI
+            // Start new timer
+            _startTimer();
+          } catch (e) {
+            print("Error starting new round: $e");
+          }
+        } else {
+          _timeRemaining = serverTimeRemaining;
           _updateGameState();
-        } catch (e) {
-          print("Error starting new round: $e");
         }
-      } else {
-        await firebaseService.updateGameState(_timeRemaining, currentLetters);
-        _updateGameState();
+      } catch (e) {
+        print("Error in timer: $e");
       }
     });
   }

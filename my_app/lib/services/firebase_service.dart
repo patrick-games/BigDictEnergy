@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:math' as math;
 
 class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -35,6 +36,7 @@ class FirebaseService {
           'timeRemaining': 60,
           'wordsFoundThisMinute': 0,
           'totalWordsFound': 0,
+          'roundStartTime': FieldValue.serverTimestamp(),
           'lastUpdated': FieldValue.serverTimestamp(),
         });
       }
@@ -198,7 +200,6 @@ class FirebaseService {
     required List<String> letters,
     required int duration,
   }) async {
-    // Use a transaction to ensure atomic update
     await _firestore.runTransaction((transaction) async {
       final gameDoc = await transaction.get(_gameRef);
 
@@ -208,7 +209,25 @@ class FirebaseService {
         'timeRemaining': duration,
         'roundStartTime': FieldValue.serverTimestamp(),
         'wordsFoundThisMinute': 0,
+        'lastUpdated': FieldValue.serverTimestamp(),
       });
     });
+  }
+
+  // Add this method to calculate time based on server timestamp
+  Future<int> calculateTimeRemaining() async {
+    try {
+      DocumentSnapshot gameDoc = await _gameRef.get();
+      if (!gameDoc.exists) return 60;
+
+      Timestamp roundStartTime = gameDoc.get('roundStartTime');
+      int elapsedSeconds =
+          DateTime.now().difference(roundStartTime.toDate()).inSeconds;
+
+      return math.max(0, 60 - elapsedSeconds);
+    } catch (e) {
+      print('Error calculating time: $e');
+      return 60;
+    }
   }
 }

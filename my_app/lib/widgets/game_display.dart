@@ -37,6 +37,14 @@ class _GameDisplayState extends State<GameDisplay> {
     widget.onSubmitWord(word).then((_) {
       _wordController.clear();
       _focusNode.requestFocus();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Word found: $word'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.green,
+        ),
+      );
     }).catchError((error) {
       String message;
       if (error.toString().contains('already found this round')) {
@@ -54,6 +62,7 @@ class _GameDisplayState extends State<GameDisplay> {
           content: Text(message),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
+          backgroundColor: Colors.red,
         ),
       );
 
