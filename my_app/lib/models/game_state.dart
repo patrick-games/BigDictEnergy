@@ -1,9 +1,7 @@
 class GameState {
   final List<String> currentLetters;
   final int timeRemaining;
-  final int wordsFoundThisMinute;
   final int totalWordsFound;
-  final int sessionWordsFound;
   final List<WordEntry> completedWords;
   final double completionPercentage;
   final int dictionarySize;
@@ -11,9 +9,7 @@ class GameState {
   GameState({
     required this.currentLetters,
     required this.timeRemaining,
-    required this.wordsFoundThisMinute,
     required this.totalWordsFound,
-    required this.sessionWordsFound,
     required this.completedWords,
     required this.completionPercentage,
     required this.dictionarySize,

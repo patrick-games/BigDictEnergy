@@ -179,17 +179,6 @@ class _GameScreenState extends State<GameScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  Text(
-                    'Words Found This Minute: ${gameState.wordsFoundThisMinute}',
-                    style: const TextStyle(fontSize: 20),
-                    textAlign: TextAlign.center,
-                  ),
-                  Text(
-                    'Total Words Found: ${gameState.totalWordsFound}',
-                    style: const TextStyle(fontSize: 20),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.all(8),

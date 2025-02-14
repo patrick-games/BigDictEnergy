@@ -14,19 +14,17 @@ class GameController extends ChangeNotifier {
   List<String> currentLetters = [];
   Timer? _timer;
   int _timeRemaining = 60;
-  int wordsFoundThisMinute = 0;
-  int totalWordsFound = 0;
-  bool _isInitialized = false;
 
-  // Add session counter
-  int _sessionWordsFound = 0;
-  int get sessionWordsFound => _sessionWordsFound;
+  bool _isInitialized = false;
 
   final _gameStateController = StreamController<GameState>.broadcast();
   Stream<GameState> get gameState => _gameStateController.stream;
 
   // Keep track of current round words locally
   List<String> _currentRoundWords = [];
+
+  // Add this declaration
+  int _totalWordsFound = 0;
 
   GameController(this.wordService) : firebaseService = FirebaseService() {
     _initializeFirebase();
@@ -44,8 +42,7 @@ class GameController extends ChangeNotifier {
       print("Retrieved game state: $gameState");
 
       currentLetters = List<String>.from(gameState['currentLetters'] ?? []);
-      wordsFoundThisMinute = gameState['wordsFoundThisMinute'] ?? 0;
-      totalWordsFound = gameState['totalWordsFound'] ?? 0;
+
       print("State variables set");
 
       // Calculate remaining time
@@ -104,11 +101,10 @@ class GameController extends ChangeNotifier {
     // Update letters if round is over
     if (_timeRemaining <= 0) {
       currentLetters = List<String>.from(data['currentLetters']);
-      wordsFoundThisMinute = 0;
+
       _currentRoundWords.clear();
     } else {
       currentLetters = List<String>.from(data['currentLetters']);
-      wordsFoundThisMinute = data['wordsFoundThisMinute'] ?? 0;
     }
 
     _updateGameState();
@@ -138,11 +134,8 @@ class GameController extends ChangeNotifier {
         }
       }
 
-      // Update words found this minute count
-      wordsFoundThisMinute = currentWords.length;
-
       // Update total words found (all time) - this is the total in Firestore
-      totalWordsFound =
+      _totalWordsFound =
           snapshot.size; // Use size instead of current round length
 
       // Sort by most recent first
@@ -172,8 +165,8 @@ class GameController extends ChangeNotifier {
             (gameState['timeRemaining'] ?? 0) > 0) {
           currentLetters = List<String>.from(gameState['currentLetters']);
           _timeRemaining = gameState['timeRemaining'];
-          wordsFoundThisMinute = gameState['wordsFoundThisMinute'] ?? 0;
-          totalWordsFound = gameState['totalWordsFound'] ?? 0;
+
+          _totalWordsFound = gameState['totalWordsFound'] ?? 0;
         } else {
           // Generate new letters if no valid state exists
           await _generateNewLetters();
@@ -191,7 +184,7 @@ class GameController extends ChangeNotifier {
   Future<void> _generateNewLetters() async {
     try {
       currentLetters = wordService.generateLetters();
-      wordsFoundThisMinute = 0;
+
       // Clear current round words
       _currentRoundWords = [];
 
@@ -229,7 +222,7 @@ class GameController extends ChangeNotifier {
             // Update local state
             currentLetters = newLetters;
             _timeRemaining = 60;
-            wordsFoundThisMinute = 0;
+
             _currentRoundWords.clear();
 
             // Start new timer
@@ -249,15 +242,13 @@ class GameController extends ChangeNotifier {
 
   void _updateGameState() {
     double completion =
-        (totalWordsFound / wordService.dictionaryWords.length) * 100;
+        (_totalWordsFound / wordService.dictionaryWords.length) * 100;
 
     _gameStateController.add(
       GameState(
         currentLetters: currentLetters,
         timeRemaining: _timeRemaining,
-        wordsFoundThisMinute: wordsFoundThisMinute,
-        totalWordsFound: totalWordsFound,
-        sessionWordsFound: _sessionWordsFound,
+        totalWordsFound: _totalWordsFound,
         completedWords: _currentRoundWords
             .map((w) => WordEntry(w, DateTime.now()))
             .toList(),
@@ -294,16 +285,14 @@ class GameController extends ChangeNotifier {
       try {
         // Optimistically add to local state for immediate feedback
         _currentRoundWords.add(upperWord);
-        _sessionWordsFound++;
-        wordsFoundThisMinute = _currentRoundWords.length;
+
         _updateGameState();
 
         // Then update Firebase in the background
         firebaseService.submitWord(upperWord).catchError((e) {
           // If Firebase update fails, rollback local state
           _currentRoundWords.remove(upperWord);
-          _sessionWordsFound--;
-          wordsFoundThisMinute = _currentRoundWords.length;
+
           _updateGameState();
           print("Error submitting word: $e");
           return Future.error('Failed to submit word');
@@ -322,7 +311,7 @@ class GameController extends ChangeNotifier {
   Future<void> resetGame() async {
     try {
       await firebaseService.resetGame();
-      _sessionWordsFound = 0;
+
       wordService.completedWords.clear();
       await _generateNewLetters();
       _timeRemaining = 60;

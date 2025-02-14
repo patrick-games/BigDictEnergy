@@ -79,14 +79,7 @@ class _GameDisplayState extends State<GameDisplay> {
         if (!snapshot.hasData) {
           return Scaffold(
             appBar: AppBar(
-              title: const Text(
-                'Big Dict Energy',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              centerTitle: true,
+              title: const Center(child: CircularProgressIndicator()),
             ),
             body: const Center(child: CircularProgressIndicator()),
           );
@@ -96,12 +89,23 @@ class _GameDisplayState extends State<GameDisplay> {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text(
-              'Big Dict Energy',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-              ),
+            title: Column(
+              children: const [
+                Text(
+                  'Big Dict Energy',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Together, lets find every word in the dictionary',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+              ],
             ),
             centerTitle: true,
           ),
@@ -178,6 +182,7 @@ class _GameDisplayState extends State<GameDisplay> {
                             letters: state.currentLetters,
                             onSubmitWord: _handleWordSubmit,
                             key: _tappableInputKey,
+                            label: 'Enter word',
                           ),
                         ],
                       );
@@ -203,42 +208,58 @@ class _GameDisplayState extends State<GameDisplay> {
                 ),
                 const SizedBox(height: 20),
 
-                // Words found counters
+                // Words found section
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    // Use smaller font for mobile
-                    double fontSize = constraints.maxWidth < 600 ? 18 : 24;
-
-                    return Column(
-                      children: [
-                        Text(
-                          'Found this round: ${state.wordsFoundThisMinute}',
-                          style: TextStyle(
-                            fontSize: fontSize,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          'Total words found: ${state.sessionWordsFound}',
-                          style: TextStyle(
-                            fontSize: fontSize,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    );
+                    return const SizedBox(
+                        height: 20); // Just add spacing instead of the counters
                   },
                 ),
                 const SizedBox(height: 20),
 
                 // List of found words (only from current round)
                 Expanded(
-                  child: ListView(
-                    children: state.completedWords
-                        .map((wordEntry) => ListTile(
-                              title: Text(wordEntry.word),
-                            ))
-                        .toList(),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.grey.shade300,
+                        width: 1,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Colors.grey.shade300,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          child: const Text(
+                            'Words Found This Round',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.black54,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        Expanded(
+                          child: ListView(
+                            children: state.completedWords
+                                .map((wordEntry) => ListTile(
+                                      title: Text(wordEntry.word),
+                                    ))
+                                .toList(),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

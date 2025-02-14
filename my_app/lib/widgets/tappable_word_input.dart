@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
 class TappableWordInput extends StatefulWidget {
-  final Function(String) onSubmitWord;
   final List<String> letters;
+  final Function(String) onSubmitWord;
+  final String label;
 
   const TappableWordInput({
     Key? key,
-    required this.onSubmitWord,
     required this.letters,
+    required this.onSubmitWord,
+    required this.label,
   }) : super(key: key);
 
   @override
@@ -66,7 +68,19 @@ class TappableWordInputState extends State<TappableWordInput>
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Add the label
+        Padding(
+          padding: const EdgeInsets.only(left: 12, bottom: 8),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.black54,
+            ),
+          ),
+        ),
         // Word display area with cursor
         Container(
           height: 60,

@@ -28,8 +28,7 @@ class HowToPlayScreen extends StatelessWidget {
               'You and anyone else playing will be seeing the exact same letters and timer.\n\n'
               'Enter as many words as you can find using the available letters.\n\n'
               'If a word has been entered in a previous round it won\'t be valid.\n\n'
-              'You see a counter of the words you\'ve entered this round (60 seconds) and total this session.\n\n'
-              'Below this you\'ll see words you and everyone else has entered in the current round.\n\n'
+              'Below you\'ll see words you and everyone else has entered in the current round.\n\n'
               'In the side menu you\'ll see a the Big Dict with all the words to find and which one has have been found already.\n\n'
               'Lets use our energgy to crack the Big Dict!',
               style: TextStyle(fontSize: 16),

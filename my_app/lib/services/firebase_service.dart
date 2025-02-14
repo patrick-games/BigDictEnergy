@@ -34,8 +34,6 @@ class FirebaseService {
         await _gameRef.set({
           'currentLetters': [],
           'timeRemaining': 60,
-          'wordsFoundThisMinute': 0,
-          'totalWordsFound': 0,
           'roundStartTime': FieldValue.serverTimestamp(),
           'lastUpdated': FieldValue.serverTimestamp(),
         });
@@ -53,7 +51,6 @@ class FirebaseService {
     await _gameRef.update({
       'currentLetters': letters,
       'timeRemaining': 60,
-      'wordsFoundThisMinute': 0,
       'lastUpdated': FieldValue.serverTimestamp(),
     });
   }
@@ -120,8 +117,6 @@ class FirebaseService {
         return {
           'currentLetters': [],
           'timeRemaining': 60,
-          'wordsFoundThisMinute': 0,
-          'totalWordsFound': 0,
         };
       }
       return gameDoc.data() as Map<String, dynamic>;
@@ -141,10 +136,7 @@ class FirebaseService {
 
       // Only accept word if time remaining
       if (gameData['timeRemaining'] > 0) {
-        await transaction.update(_gameRef, {
-          'wordsFoundThisMinute': FieldValue.increment(1),
-          'totalWordsFound': FieldValue.increment(1),
-        });
+        await transaction.update(_gameRef, {});
 
         await _wordsRef.add({
           'word': word,
@@ -165,8 +157,6 @@ class FirebaseService {
 
       // Reset game state
       batch.update(_gameRef, {
-        'wordsFoundThisMinute': 0,
-        'totalWordsFound': 0,
         'timeRemaining': 60,
       });
 
@@ -208,7 +198,6 @@ class FirebaseService {
         'currentLetters': letters,
         'timeRemaining': duration,
         'roundStartTime': FieldValue.serverTimestamp(),
-        'wordsFoundThisMinute': 0,
         'lastUpdated': FieldValue.serverTimestamp(),
       });
     });
