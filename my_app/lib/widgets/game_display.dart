@@ -91,7 +91,7 @@ class _GameDisplayState extends State<GameDisplay> {
                   Text(
                     'Together, lets find every word in the dictionary',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.normal,
                     ),
                   ),

@@ -62,7 +62,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Word Game',
+      title: 'Big Dict Energy',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),

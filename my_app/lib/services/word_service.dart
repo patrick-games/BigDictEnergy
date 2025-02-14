@@ -92,8 +92,4 @@ class WordService {
   bool isValidWord(String word, List<String> letters) {
     return isValidDictionaryWord(word) && canBeFormedFromLetters(word, letters);
   }
-
-  int calculatePoints(String word) {
-    return word.length * 10; // Simple scoring: 10 points per letter
-  }
 }
