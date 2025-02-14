@@ -190,159 +190,168 @@ class _GameDisplayState extends State<GameDisplay> {
             centerTitle: true,
           ),
           drawer: const AppDrawer(),
-          body: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Global progress at top
-                Text(
-                    '${state.totalWordsFound} / ${state.dictionarySize} words (${state.completionPercentage.toStringAsFixed(4)}%)'),
-                const SizedBox(height: 20),
+          body: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: MediaQuery.of(context).size.height -
+                    AppBar().preferredSize.height -
+                    MediaQuery.of(context).padding.top,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Move all the fixed content into a Column
+                    Column(
+                      children: [
+                        // Global progress
+                        Text(
+                            '${state.totalWordsFound} / ${state.dictionarySize} words (${state.completionPercentage.toStringAsFixed(4)}%)'),
+                        const SizedBox(height: 20),
 
-                // Timer
-                Text(
-                  'Time: ${state.timeRemaining}',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: state.timeRemaining <= 5 ? Colors.red : Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 20),
+                        // Timer
+                        Text(
+                          'Time: ${state.timeRemaining}',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: state.timeRemaining <= 5
+                                ? Colors.red
+                                : Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
 
-                // Letters display with hexagonal shape
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    return Wrap(
-                      spacing: 8.0,
-                      runSpacing: 8.0,
-                      children: state.currentLetters.map((letter) {
-                        bool isVowel = 'AEIOU'.contains(letter);
-                        return GestureDetector(
-                          onTap: () {
+                        // Letters display
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Wrap(
+                              spacing: 8.0,
+                              runSpacing: 8.0,
+                              children: state.currentLetters.map((letter) {
+                                bool isVowel = 'AEIOU'.contains(letter);
+                                return GestureDetector(
+                                  onTap: () {
+                                    if (constraints.maxWidth < 600) {
+                                      _tappableInputKey.currentState
+                                          ?.addLetter(letter);
+                                    }
+                                  },
+                                  child: Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: isVowel
+                                          ? Colors.amber
+                                          : Colors.lightBlue,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        letter,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Word input
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            // Use tappable input for screens narrower than 600px
                             if (constraints.maxWidth < 600) {
-                              _tappableInputKey.currentState?.addLetter(letter);
+                              return Column(
+                                children: [
+                                  const SizedBox(height: 20),
+                                  TappableWordInput(
+                                    letters: state.currentLetters,
+                                    onSubmitWord: _handleWordSubmit,
+                                    key: _tappableInputKey,
+                                    label: 'Enter word',
+                                  ),
+                                ],
+                              );
+                            } else {
+                              // Original text field for wider screens
+                              return Column(
+                                children: [
+                                  const SizedBox(height: 20),
+                                  TextField(
+                                    controller: _wordController,
+                                    focusNode: _focusNode,
+                                    autofocus: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Enter word',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    onSubmitted: _handleWordSubmit,
+                                  ),
+                                ],
+                              );
                             }
                           },
-                          child: Container(
-                            width: 50,
-                            height: 50,
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+
+                    // Words found section with fixed height
+                    Container(
+                      height: 300, // Fixed height for the words list
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
-                              color: isVowel ? Colors.amber : Colors.lightBlue,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: Text(
-                                letter,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
-
-                // Word input
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    // Use tappable input for screens narrower than 600px
-                    if (constraints.maxWidth < 600) {
-                      return Column(
-                        children: [
-                          const SizedBox(height: 20),
-                          TappableWordInput(
-                            letters: state.currentLetters,
-                            onSubmitWord: _handleWordSubmit,
-                            key: _tappableInputKey,
-                            label: 'Enter word',
-                          ),
-                        ],
-                      );
-                    } else {
-                      // Original text field for wider screens
-                      return Column(
-                        children: [
-                          const SizedBox(height: 20),
-                          TextField(
-                            controller: _wordController,
-                            focusNode: _focusNode,
-                            autofocus: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Enter word',
-                              border: OutlineInputBorder(),
-                            ),
-                            onSubmitted: _handleWordSubmit,
-                          ),
-                        ],
-                      );
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-
-                // Words found section
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    return const SizedBox(
-                        height: 20); // Just add spacing instead of the counters
-                  },
-                ),
-                const SizedBox(height: 20),
-
-                // List of found words (only from current round)
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.grey.shade300,
-                        width: 1,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                color: Colors.grey.shade300,
-                                width: 1,
+                            child: const Text(
+                              'Words Found This Round',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.black54,
                               ),
+                              textAlign: TextAlign.center,
                             ),
                           ),
-                          child: const Text(
-                            'Words Found This Round',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.black54,
+                          Expanded(
+                            child: ListView(
+                              children: state.completedWords
+                                  .map((wordEntry) => ListTile(
+                                        title: Text(wordEntry.word),
+                                      ))
+                                  .toList(),
                             ),
-                            textAlign: TextAlign.center,
                           ),
-                        ),
-                        Expanded(
-                          child: ListView(
-                            children: state.completedWords
-                                .map((wordEntry) => ListTile(
-                                      title: Text(wordEntry.word),
-                                    ))
-                                .toList(),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         );
