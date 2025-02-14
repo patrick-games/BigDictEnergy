@@ -2,18 +2,37 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
 
 class FirebaseService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore? _firestore;
+  DocumentSnapshot? _cachedGameState;
+  DateTime? _lastGameStateFetch;
+
+  FirebaseService() {
+    try {
+      _firestore = FirebaseFirestore.instance;
+    } catch (e) {
+      print("Error initializing Firestore: $e");
+    }
+  }
 
   // Reference to the single game document
-  DocumentReference get _gameRef =>
-      _firestore.collection('games').doc('current');
+  DocumentReference get gameRef {
+    if (_firestore == null) {
+      throw Exception('Firestore not initialized');
+    }
+    return _firestore!.collection('games').doc('current');
+  }
 
   // Reference to completed words collection
-  CollectionReference get _wordsRef => _firestore.collection('completedWords');
+  CollectionReference get _wordsRef {
+    if (_firestore == null) {
+      throw Exception('Firestore not initialized');
+    }
+    return _firestore!.collection('completedWords');
+  }
 
-  // Stream of game state
+  // Stream of game state with caching
   Stream<DocumentSnapshot> getGameStateStream() {
-    return _gameRef.snapshots();
+    return gameRef.snapshots();
   }
 
   // Stream of completed words
@@ -21,17 +40,40 @@ class FirebaseService {
     return _wordsRef.orderBy('timestamp', descending: true).snapshots();
   }
 
+  // Get current game state with caching
+  Future<Map<String, dynamic>> getCurrentGameState() async {
+    // If we have a cached state and it's less than 1 second old, use it
+    if (_cachedGameState != null && _lastGameStateFetch != null) {
+      final age = DateTime.now().difference(_lastGameStateFetch!);
+      if (age.inSeconds < 1) {
+        return _cachedGameState!.data() as Map<String, dynamic>;
+      }
+    }
+
+    final snapshot = await gameRef.get();
+    _cachedGameState = snapshot;
+    _lastGameStateFetch = DateTime.now();
+
+    if (!snapshot.exists) {
+      return {};
+    }
+    return snapshot.data() as Map<String, dynamic>;
+  }
+
   // Initialize or get current game state
   Future<void> initializeGameState() async {
     try {
       print("Initializing game state...");
 
-      final gameDoc = await _gameRef.get();
+      final gameDoc = await gameRef.get();
+      _cachedGameState = gameDoc;
+      _lastGameStateFetch = DateTime.now();
+
       print("Game document exists: ${gameDoc.exists}");
 
       if (!gameDoc.exists) {
         print("Creating new game state...");
-        await _gameRef.set({
+        await gameRef.set({
           'currentLetters': [],
           'timeRemaining': 60,
           'roundStartTime': FieldValue.serverTimestamp(),
@@ -48,7 +90,7 @@ class FirebaseService {
 
   // Update current letters
   Future<void> updateCurrentLetters(List<String> letters) async {
-    await _gameRef.update({
+    await gameRef.update({
       'currentLetters': letters,
       'timeRemaining': 60,
       'lastUpdated': FieldValue.serverTimestamp(),
@@ -71,20 +113,21 @@ class FirebaseService {
     }
   }
 
-  // Get time since last update
+  // Calculate elapsed time since round start
   Future<int> getElapsedTime() async {
-    try {
-      DocumentSnapshot gameDoc = await _gameRef.get();
-      if (!gameDoc.exists) return 0;
-
-      Timestamp? lastUpdated = gameDoc.get('lastUpdated');
-      if (lastUpdated == null) return 0;
-
-      return DateTime.now().difference(lastUpdated.toDate()).inSeconds;
-    } catch (e) {
-      print('Error getting elapsed time: $e');
+    final snapshot = await gameRef.get();
+    if (!snapshot.exists) {
       return 0;
     }
+
+    final data = snapshot.data() as Map<String, dynamic>;
+    final roundStartTime = (data['roundStartTime'] as Timestamp?)?.toDate();
+
+    if (roundStartTime == null) {
+      return 0;
+    }
+
+    return DateTime.now().difference(roundStartTime).inSeconds;
   }
 
   // Update game state with time
@@ -103,40 +146,20 @@ class FirebaseService {
       data['roundStartTime'] = Timestamp.fromDate(roundStartTime);
     }
 
-    await _gameRef.update(data);
-  }
-
-  // Get current game state
-  Future<Map<String, dynamic>> getCurrentGameState() async {
-    try {
-      DocumentSnapshot gameDoc = await _gameRef.get();
-      print("Retrieved game state: ${gameDoc.data()}");
-      if (!gameDoc.exists) {
-        print("No game state found, initializing...");
-        await initializeGameState();
-        return {
-          'currentLetters': [],
-          'timeRemaining': 60,
-        };
-      }
-      return gameDoc.data() as Map<String, dynamic>;
-    } catch (e) {
-      print('Error getting game state: $e');
-      rethrow;
-    }
+    await gameRef.update(data);
   }
 
   Future<void> submitWord(String word) async {
     final timestamp = FieldValue.serverTimestamp();
 
     // Use a transaction to ensure word is counted even at last moment
-    await _firestore.runTransaction((transaction) async {
-      final gameDoc = await transaction.get(_gameRef);
+    await _firestore!.runTransaction((transaction) async {
+      final gameDoc = await transaction.get(gameRef);
       final gameData = gameDoc.data() as Map<String, dynamic>;
 
       // Only accept word if time remaining
       if (gameData['timeRemaining'] > 0) {
-        await transaction.update(_gameRef, {});
+        await transaction.update(gameRef, {});
 
         await _wordsRef.add({
           'word': word,
@@ -150,13 +173,13 @@ class FirebaseService {
     try {
       // Delete all words
       final wordsSnapshot = await _wordsRef.get();
-      final batch = _firestore.batch();
+      final batch = _firestore!.batch();
       for (var doc in wordsSnapshot.docs) {
         batch.delete(doc.reference);
       }
 
       // Reset game state
-      batch.update(_gameRef, {
+      batch.update(gameRef, {
         'timeRemaining': 60,
       });
 
@@ -169,7 +192,7 @@ class FirebaseService {
   }
 
   Future<DateTime?> getRoundStartTime() async {
-    final doc = await _gameRef.get();
+    final doc = await gameRef.get();
     if (doc.exists) {
       final data = doc.data() as Map<String, dynamic>;
       if (data['roundStartTime'] != null) {
@@ -190,11 +213,11 @@ class FirebaseService {
     required List<String> letters,
     required int duration,
   }) async {
-    await _firestore.runTransaction((transaction) async {
-      final gameDoc = await transaction.get(_gameRef);
+    await _firestore!.runTransaction((transaction) async {
+      final gameDoc = await transaction.get(gameRef);
 
       // Update game state atomically
-      transaction.set(_gameRef, {
+      transaction.set(gameRef, {
         'currentLetters': letters,
         'timeRemaining': duration,
         'roundStartTime': FieldValue.serverTimestamp(),
@@ -206,7 +229,7 @@ class FirebaseService {
   // Add this method to calculate time based on server timestamp
   Future<int> calculateTimeRemaining() async {
     try {
-      DocumentSnapshot gameDoc = await _gameRef.get();
+      DocumentSnapshot gameDoc = await gameRef.get();
       if (!gameDoc.exists) return 60;
 
       Timestamp roundStartTime = gameDoc.get('roundStartTime');

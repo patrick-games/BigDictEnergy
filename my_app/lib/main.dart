@@ -11,17 +11,47 @@ import 'package:my_app/screens/dictionary_screen.dart';
 import 'package:my_app/screens/about_screen.dart';
 
 void main() async {
+  // Initialize Flutter bindings
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
 
+  // Initialize Firebase first and wait for it to complete
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print("Firebase initialized successfully");
+  } catch (e) {
+    print("Error initializing Firebase: $e");
+    // Show error UI instead of crashing
+    runApp(const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Text(
+            'Failed to initialize app. Please try again later.',
+            style: TextStyle(fontSize: 16),
+          ),
+        ),
+      ),
+    ));
+    return;
+  }
+
+  // Create services only after Firebase is initialized
   final wordService = WordService();
-  await wordService.initializeWords();
   final gameController = GameController(wordService);
-  await gameController.startGame();
 
+  // Show the app immediately with loading state
   runApp(MyApp(gameController: gameController));
+
+  try {
+    // Initialize remaining services
+    await wordService.initializeWords();
+    await gameController.initialize();
+    print("All initialization complete");
+  } catch (e) {
+    print("Error during initialization: $e");
+    // The app will show the loading state if there's an error
+  }
 }
 
 class MyApp extends StatelessWidget {

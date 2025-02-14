@@ -26,67 +26,91 @@ class GameController extends ChangeNotifier {
   // Add this declaration
   int _totalWordsFound = 0;
 
-  GameController(this.wordService) : firebaseService = FirebaseService() {
-    _initializeFirebase();
+  GameController(this.wordService) : firebaseService = FirebaseService();
+
+  Future<void> initialize() async {
+    if (!_isInitialized) {
+      try {
+        print("Starting game controller initialization...");
+
+        // Run Firebase initialization and word service initialization in parallel
+        final initResults = await Future.wait([
+          _initializeFirebase(),
+          wordService.initializeWords(),
+        ]);
+
+        // Get game state from the _initializeFirebase result
+        final gameState = initResults[0] as Map<String, dynamic>;
+
+        // Calculate initial time remaining
+        int elapsedTime = await firebaseService.getElapsedTime();
+        _timeRemaining = (gameState['timeRemaining'] ?? 60) - elapsedTime;
+
+        // If we need new letters or time is up, generate new ones
+        if (_timeRemaining <= 0 ||
+            gameState['currentLetters']?.isEmpty == true) {
+          print("Generating new letters...");
+          currentLetters = wordService.generateLetters();
+          _timeRemaining = 60;
+          await firebaseService.updateCurrentLetters(currentLetters);
+        } else {
+          currentLetters = List<String>.from(gameState['currentLetters']);
+        }
+
+        // Start timer and update state
+        _startTimer();
+        _updateGameState();
+
+        // Set up listeners after initial state is set
+        _setupListeners();
+
+        _isInitialized = true;
+        print("Game controller initialization complete");
+      } catch (e) {
+        print("Error during game controller initialization: $e");
+        rethrow;
+      }
+    }
   }
 
-  Future<void> _initializeFirebase() async {
+  Future<Map<String, dynamic>> _initializeFirebase() async {
     try {
       print("Starting Firebase initialization...");
-      await firebaseService.initializeGameState();
-      print("Firebase initialized, getting game state...");
 
-      // Get current game state
-      Map<String, dynamic> gameState =
-          await firebaseService.getCurrentGameState();
-      print("Retrieved game state: $gameState");
+      // Get game state and initialize in parallel if needed
+      final gameDocFuture = firebaseService.gameRef.get();
+      await firebaseService.initializeGameState();
+
+      final gameDoc = await gameDocFuture;
+      final gameState = gameDoc.data() as Map<String, dynamic>? ?? {};
 
       currentLetters = List<String>.from(gameState['currentLetters'] ?? []);
 
-      print("State variables set");
-
-      // Calculate remaining time
-      int elapsedTime = await firebaseService.getElapsedTime();
-      _timeRemaining = (gameState['timeRemaining'] ?? 60) - elapsedTime;
-      print("Time remaining calculated: $_timeRemaining");
-
-      if (_timeRemaining <= 0 || currentLetters.isEmpty) {
-        print("Generating new letters...");
-        await _generateNewLetters();
-        _timeRemaining = 60;
-      }
-
-      print("Starting timer and updating state...");
-      _startTimer();
-      _updateGameState();
-
-      // Listen to game state changes
-      print("Setting up game state listener...");
-      _gameSubscription = firebaseService.getGameStateStream().listen(
-        (snapshot) {
-          print("Game state update received");
-          if (snapshot.exists) {
-            _handleGameStateUpdate(snapshot);
-          }
-        },
-        onError: (error) => print("Game state stream error: $error"),
-      );
-
-      // Listen to completed words
-      print("Setting up completed words listener...");
-      _wordsSubscription = firebaseService.getCompletedWordsStream().listen(
-        (snapshot) {
-          print("Completed words update received");
-          _handleCompletedWordsUpdate(snapshot);
-        },
-        onError: (error) => print("Completed words stream error: $error"),
-      );
-
-      print("Firebase initialization complete");
+      return gameState;
     } catch (e) {
       print('Error initializing Firebase: $e');
       rethrow;
     }
+  }
+
+  void _setupListeners() {
+    // Listen to game state changes
+    _gameSubscription = firebaseService.getGameStateStream().listen(
+      (snapshot) {
+        if (snapshot.exists) {
+          _handleGameStateUpdate(snapshot);
+        }
+      },
+      onError: (error) => print("Game state stream error: $error"),
+    );
+
+    // Listen to completed words
+    _wordsSubscription = firebaseService.getCompletedWordsStream().listen(
+      (snapshot) {
+        _handleCompletedWordsUpdate(snapshot);
+      },
+      onError: (error) => print("Completed words stream error: $error"),
+    );
   }
 
   void _handleGameStateUpdate(DocumentSnapshot snapshot) async {

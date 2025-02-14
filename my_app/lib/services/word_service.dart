@@ -3,21 +3,28 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 
 class WordService {
-  final Set<String> dictionaryWords = {};
+  static Set<String>? _cachedDictionary;
   final Set<String> completedWords = {};
   final List<String> _vowels = ['A', 'E', 'I', 'O', 'U'];
 
   List<String> get vowels => _vowels;
+  Set<String> get dictionaryWords => _cachedDictionary ?? {};
 
   Future<void> initializeWords() async {
+    if (_cachedDictionary != null) {
+      print("Using cached dictionary");
+      return;
+    }
+
     try {
       // Load dictionary from json
       String jsonString = await rootBundle.loadString('assets/word_list.json');
       Map<String, dynamic> jsonData = json.decode(jsonString);
 
-      // Get the keys (words) from the JSON object
-      dictionaryWords.addAll(jsonData.keys.map((w) => w.toUpperCase()));
-      print("Dictionary loaded with ${dictionaryWords.length} words");
+      // Pre-allocate the set with the expected size for better performance
+      _cachedDictionary =
+          Set<String>.from(jsonData.keys.map((w) => w.toUpperCase()));
+      print("Dictionary loaded with ${_cachedDictionary!.length} words");
     } catch (e) {
       print("Error loading dictionary: $e");
       rethrow;
